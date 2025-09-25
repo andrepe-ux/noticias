@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>WEB-Notícias</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial;margin:0;padding:20px;background:#f6f7fb;color:#0b1220}
+    header{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+    h1{margin:0;font-size:20px}
+    .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+    select, input[type=text], input[type=number]{padding:8px;border-radius:8px;border:1px solid #d0d6e2}
+    button{padding:8px 12px;border-radius:8px;border:1px solid #d0d6e2;background:white;cursor:pointer}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+    .card{background:white;padding:12px;border-radius:12px;box-shadow:0 6px 18px rgba(12,20,40,0.06)}
+    .item{border-bottom:1px solid #eef2f8;padding:8px 0}
+    .item:last-child{border-bottom:none}
+    .meta{font-size:12px;color:#6b7280}
+    .small{font-size:13px;color:#24303f}
+    .loading {font-style: italic; color: #6b7280;}
+
+    /* Sidebar */
+    .sidebar {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background-color: white;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      width: 220px;
+      font-size: 14px;
+      z-index: 1000;
+    }
+    .sidebar h2 {margin-top: 0;font-size: 16px;}
+    .sidebar .time, .sidebar .quote {margin-bottom: 12px;}
+    .flag {width: 18px;height: 12px;vertical-align: middle;}
+
+    /* Apontamentos */
+    #apontamentos {background:#fff;padding:12px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);margin-top:20px;}
+    #apontamentos .toolbar {display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+    #editor {
+      width:100%;min-height:200px;padding:10px;font-size:14px;
+      border-radius:8px;border:1px solid #ccc;background:#f9f9f9;
+    }
+
+    /* Botões selecionados */
+    button.selected {
+      background-color: #4caf50;
+      color: white;
+      border-color: #4caf50;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>MERCADONA</h1>
+    <div class="controls">
+      <label>Dias a mostrar: <input id="dias" type="number" value="5" min="1" max="30"></label>
+      <button id="refresh">Atualizar agora</button>
+    </div>
+  </div>
+</header>
+
+<main class="grid">
+  <section class="card" id="gn-card">
+    <h2>Notícias sobre Código do Trabalho</h2>
+    <div id="gn-list"><p class="meta">A carregar...</p></div>
+  </section>
+
+  <section class="card" id="gn-livre-card">
+    <h2>Tema livre</h2>
+    <div>
+      <label for="temaLivre">Pesquise por um tema: </label>
+      <input id="temaLivre" type="text" placeholder="Escreva o seu tema">
+    </div>
+    <div id="gn-livre-list"><p class="meta">A carregar...</p></div>
+  </section>
+
+  <section class="card" id="oe-card">
+    <h2>Orçamento de Estado 2026</h2>
+    <div id="oe-list"><p class="meta">A carregar...</p></div>
+  </section>
+
+  <!-- Apontamentos -->
+  <section class="card" id="apontamentos">
+    <h2>Apontamentos</h2>
+    <div class="toolbar">
+      <button onclick="document.execCommand('bold')">Negrito</button>
+      <button onclick="document.execCommand('underline')">Sublinhado</button>
+      <button onclick="document.execCommand('strikeThrough')">Rasurado</button>
+      <button onclick="document.execCommand('insertOrderedList')">Lista numerada</button>
+      <input type="color" id="colorPicker" title="Cor da letra">
+      <button id="exportTxt">Exportar .txt</button>
+    </div>
+    <div id="editor" contenteditable="true"></div>
+  </section>
+</main>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+  <h2>PORTUGAL</h2>
+  <div class="time" id="portugal-time">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/5/5c/Flag_of_Portugal.svg" alt="Bandeira de Portugal" class="flag"> 
+    <span id="time">00:00:00</span>
+  </div>
+  <div class="time" id="spain-time">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/9/9a/Flag_of_Spain.svg" alt="Bandeira da Espanha" class="flag"> 
+    <span id="time-spain">00:00:00</span>
+  </div>
+  <div class="quote" id="quote">Frase motivacional do dia...</div>
+</div>
+
+<script>
+// Variáveis principais
+const elements = {
+  dias: document.getElementById('dias'),
+  temaLivre: document.getElementById('temaLivre'),
+  refresh: document.getElementById('refresh'),
+  gnList: document.getElementById('gn-list'),
+  gnLivreList: document.getElementById('gn-livre-list'),
+  oeList: document.getElementById('oe-list'),
+  time: document.getElementById('time'),
+  timeSpain: document.getElementById('time-spain'),
+  quote: document.getElementById('quote'),
+  editor: document.getElementById('editor'),
+  colorPicker: document.getElementById('colorPicker'),
+  exportTxt: document.getElementById('exportTxt')
+};
+
+// Função para adicionar/remover a classe 'selected' aos botões
+function toggleButtonSelection(button) {
+  const buttons = document.querySelectorAll('.toolbar button');
+  buttons.forEach(btn => btn.classList.remove('selected')); // Remove 'selected' de todos os botões
+  button.classList.add('selected'); // Adiciona 'selected' ao botão clicado
+}
+
+// Adicionar evento de clique aos botões
+document.querySelectorAll('.toolbar button').forEach(button => {
+  button.addEventListener('click', () => toggleButtonSelection(button));
+});
+
+// Frases motivacionais
+const quotes = [
+"O que não cambia é o cambio.",
+  "Acredite em si e todo o resto virá.",
+  "O único limite é aquele que você coloca em si mesmo.",
+  "Cada dia é uma nova oportunidade de mudar sua vida.",
+  "O sucesso começa com a decisão de tentar.",
+  "Não desista, a vitória pode estar logo à frente!",
+  "Persistência transforma impossíveis em conquistas.",
+  "A disciplina vence a motivação passageira.",
+  "Pequenos passos constroem grandes jornadas.",
+  "Seja a mudança que você deseja ver no mundo.",
+  "A coragem é o primeiro passo para o sucesso."
+];
+
+// Hora Portugal/Espanha
+function updateClock() {
+  const nowPortugal = new Date();
+  const portugalTime = nowPortugal.toLocaleTimeString('pt-PT', { hour12: false, timeZone: 'Europe/Lisbon' });
+  const spainTime = nowPortugal.toLocaleTimeString('es-ES', { hour12: false, timeZone: 'Europe/Madrid' });
+  elements.time.innerHTML = portugalTime;
+  elements.timeSpain.innerHTML = spainTime;
+}
+setInterval(updateClock, 1000);
+
+// Frase motivacional do dia
+function getDayOfYear(date = new Date()) {
+  const start = new Date(date.getFullYear(), 0, 0);
+  return Math.floor((date - start) / (1000 * 60 * 60 * 24));
+}
+function setMotivationalQuote() {
+  const dayOfYear = getDayOfYear();
+  const quoteIndex = dayOfYear % quotes.length;
+  elements.quote.innerHTML = `"${quotes[quoteIndex]}"`;
+}
+setMotivationalQuote();
+
+// Notícias (igual à
+// Notícias (igual à tua versão anterior simplificada)
+function buildProxyUrl(url) {
+  return 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(url);
+}
+async function fetchFeed(url) {
+  const p = buildProxyUrl(url);
+  const r = await fetch(p);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return await r.json();
+}
+function parseRssItems(feedJson) {
+  if (!feedJson.items) return [];
+  return feedJson.items.map(it => ({
+    title: it.title,
+    link: it.link,
+    pubDate: new Date(it.pubDate),
+    description: it.description
+  }));
+}
+function isWithinDays(date, days) {
+  if (!date) return false;
+  const now = new Date();
+  const diff = (now - date) / (1000 * 60 * 60 * 24);
+  return diff <= days;
+}
+async function loadNews(term, container, dias) {
+  const q = encodeURIComponent(term + ' site:pt');
+  const feed = `https://news.google.com/rss/search?q=${q}&hl=pt-PT&gl=PT&ceid=PT:pt`;
+  try {
+    const data = await fetchFeed(feed);
+    let items = parseRssItems(data);
+    items = items.filter(it => isWithinDays(it.pubDate, dias));
+    items.sort((a,b) => b.pubDate - a.pubDate);
+    renderList(container, items.slice(0, 50), dias);
+  } catch (e) {
+    container.innerHTML = `<p class="meta">Erro a carregar notícias: ${e.message}</p>`;
+  }
+}
+function renderList(container, items, dias) {
+  if (!items || items.length === 0) {
+    container.innerHTML = `<p class="meta">Sem resultados nos últimos ${dias} dia(s).</p>`;
+    return;
+  }
+  const html = items.map(it => {
+    const date = it.pubDate ? it.pubDate.toLocaleString() : '';
+    const shortDesc = it.description ? (it.description.replace(/<[^>]+>/g, '').slice(0, 240)) : '';
+    return `
+      <div class="item">
+        <div class="small"><a href="${it.link}" target="_blank" rel="noopener noreferrer">${it.title}</a></div>
+        <div class="meta">${date}</div>
+        <div class="meta">${shortDesc}</div>
+      </div>`;
+  }).join('');
+  container.innerHTML = html;
+}
+async function refresh() {
+  const dias = parseInt(elements.dias.value) || 5;
+  const temaLivre = elements.temaLivre.value.trim();
+  elements.gnList.innerHTML = '<p class="meta">A carregar...</p>';
+  elements.gnLivreList.innerHTML = '<p class="meta">A carregar...</p>';
+  elements.oeList.innerHTML = '<p class="meta">A carregar...</p>';
+  await Promise.all([
+    loadNews('código do trabalho', elements.gnList, dias),
+    temaLivre ? loadNews(temaLivre, elements.gnLivreList, dias) : Promise.resolve(elements.gnLivreList.innerHTML = '<p class="meta">Nenhum tema livre indicado.</p>'),
+    loadNews('Orçamento de Estado 2026', elements.oeList, dias)
+  ]);
+}
+elements.refresh.addEventListener('click', () => refresh());
+elements.temaLivre.addEventListener('keydown', (e) => { if (e.key === 'Enter') refresh(); });
+refresh();
+
+// Apontamentos: cor e exportação
+elements.colorPicker.addEventListener('input', () => {
+  document.execCommand('foreColor', false, elements.colorPicker.value);
+});
+elements.exportTxt.addEventListener('click', () => {
+  const text = elements.editor.innerText;
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'apontamentos.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>
